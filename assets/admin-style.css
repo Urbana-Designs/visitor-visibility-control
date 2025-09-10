@@ -1,0 +1,90 @@
+/* Visitor Visibility Control Admin Styles */
+
+.visitor-visibility-control-panel .components-panel__body {
+    border-top: 1px solid #e2e4e7;
+}
+
+.visitor-visibility-control-panel .components-checkbox-control {
+    margin-bottom: 0;
+}
+
+.visitor-visibility-control-panel .components-checkbox-control__help {
+    font-style: italic;
+    color: #757575;
+    margin-top: 8px;
+}
+
+/* Hide classic meta box when block editor is present */
+.block-editor-page #vvc-visibility-settings,
+.is-fullscreen-mode #vvc-visibility-settings,
+body.gutenberg-editor-page #vvc-visibility-settings {
+    display: none !important;
+}
+
+/* Hide auto-generated WordPress meta panels for _show_to_visitor */
+.components-panel__body:not(.visitor-visibility-control-panel):has([data-label="_show_to_visitor"]),
+.components-panel__body:not(.visitor-visibility-control-panel):has([id*="_show_to_visitor"]),
+.components-panel__body:not(.visitor-visibility-control-panel):has([name*="_show_to_visitor"]) {
+    display: none !important;
+}
+
+/* Fallback for browsers that don't support :has() */
+.components-panel__body[data-label="_show_to_visitor"] {
+    display: none !important;
+}
+
+/* Ensure our custom panel is always visible */
+.visitor-visibility-control-panel {
+    display: block !important;
+}
+
+/* Classic Editor Meta Box Styles */
+#vvc-visibility-settings .description {
+    font-style: italic;
+    color: #666;
+    margin-top: 5px;
+}
+
+#vvc-visibility-settings label {
+    font-weight: 600;
+}
+
+/* Admin Column Styles */
+.column-visitor_visibility {
+    width: 120px;
+}
+
+.column-visitor_visibility span {
+    font-weight: 600;
+}
+
+/* Bulk Edit and Quick Edit Styles */
+.inline-edit-group .title {
+    font-weight: 600;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.inline-edit-group select[name="vvc_bulk_edit_visitor_visibility"] {
+    width: 100%;
+    max-width: 200px;
+}
+
+.inline-edit-group label input[type="checkbox"] {
+    margin-right: 5px;
+}
+
+.inline-edit-col .inline-edit-group {
+    margin-bottom: 10px;
+}
+
+/* Loading state for bulk edit */
+#bulk_edit[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Frontend CSS - Hide pages that couldn't be filtered out */
+.vvc-hidden-page {
+    display: none !important;
+}
