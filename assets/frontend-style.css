@@ -1,0 +1,12 @@
+/* Visitor Visibility Control Frontend Styles */
+
+/* Hide pages that couldn't be filtered out by other methods */
+.vvc-hidden-page {
+    display: none !important;
+}
+
+/* Hide menu items for hidden pages */
+li.vvc-hidden-page,
+.menu-item.vvc-hidden-page {
+    display: none !important;
+}
