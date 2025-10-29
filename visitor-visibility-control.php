@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: Visitor Visibility Control
- * Plugin URI: https://github.com/your-username/visitor-visibility-control
+ * Plugin URI: https://github.com/Urbana-Designs/visitor-visibility-control
  * Description: Adds a checkbox in the editor to hide/show content for logged-in users and controls menu visibility.
- * Version: 1.0.0
- * Author: Your Name/Company
- * Author URI: https://github.com/your-username
+ * Version: 1.0.1
+ * Author: Urbana Designs
+ * Author URI: https://github.com/Urbana-Designs
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: visitor-visibility-control
@@ -23,12 +23,21 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('VVC_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('VVC_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('VVC_PLUGIN_VERSION', '1.0.0');
+define('VVC_PLUGIN_VERSION', '1.0.1');
 
 /**
  * Main plugin class
  */
 class VisitorVisibilityControl {
+    /**
+     * Tracks when we need to customize the 404 template for restricted content.
+     */
+    private $is_rendering_restricted = false;
+
+    /**
+     * Stores the login URL used within the restricted template.
+     */
+    private $restricted_login_url = '';
     
     /**
      * Constructor
@@ -56,8 +65,9 @@ class VisitorVisibilityControl {
         // Add hooks for frontend functionality
         add_action('pre_get_posts', array($this, 'exclude_hidden_posts_from_queries'));
         add_filter('wp_get_nav_menu_items', array($this, 'exclude_hidden_posts_from_menus'), 10, 3);
-        add_action('parse_query', array($this, 'handle_hidden_post_access'));
-        add_action('template_redirect', array($this, 'restrict_hidden_post_access'));
+    add_action('parse_query', array($this, 'handle_hidden_post_access'));
+    add_action('wp', array($this, 'restrict_hidden_post_access'));
+    add_action('template_redirect', array($this, 'maybe_render_restricted_template'), 0);
         
         // Add filters for automatic page listings and wp_list_pages
         add_filter('wp_list_pages_excludes', array($this, 'exclude_hidden_pages_from_wp_list_pages'));
@@ -401,8 +411,12 @@ class VisitorVisibilityControl {
                 $is_accessible = $this->check_parent_page_access($post_obj);
             }
             
-            // If not accessible, force 404
+            // If not accessible, force 404 and mark for restricted message
             if (!$is_accessible) {
+                if (!is_user_logged_in()) {
+                    $wp_query->set('vvc_restricted_access', true);
+                }
+
                 $wp_query->set_404();
                 status_header(404);
                 nocache_headers();
@@ -415,37 +429,40 @@ class VisitorVisibilityControl {
      * Restrict access to hidden posts on frontend (fallback)
      */
     public function restrict_hidden_post_access() {
-        // Only on singular pages that haven't been caught by parse_query
-        if (!is_singular() || is_404()) {
+        global $wp_query, $post;
+
+        $is_restricted_404 = (bool) $wp_query->get('vvc_restricted_access');
+
+        // Only run on singular content or when already flagged as restricted
+        if (!$is_restricted_404 && (!is_singular() || is_404())) {
             return;
         }
-        
+
         // Don't affect admin or users with edit capabilities
         if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
             return;
         }
-        
-        global $post;
-        
+
         if ($post) {
             $show_to_visitor = get_post_meta($post->ID, '_show_to_visitor', true);
-            
+
             // If meta doesn't exist, default to false (hidden)
             if ($show_to_visitor === '') {
                 $show_to_visitor = false;
             }
-            
+
             // Check if this is a child page and if parent is hidden
             $is_child_accessible = $this->check_parent_page_access($post);
-            
+
             // Set 404 if post should not be shown to visitors OR if parent is hidden
             if (!$show_to_visitor || !$is_child_accessible) {
-                global $wp_query;
+                if (!is_user_logged_in()) {
+                    $wp_query->set('vvc_restricted_access', true);
+                }
+
                 $wp_query->set_404();
                 status_header(404);
                 nocache_headers();
-                
-                // Let WordPress handle 404 template loading
                 return;
             }
         }
@@ -480,6 +497,98 @@ class VisitorVisibilityControl {
         }
         
         return true;
+    }
+    
+    /**
+     * Render the restricted template when needed
+     */
+    public function maybe_render_restricted_template() {
+        if (is_user_logged_in() || !is_404()) {
+            return;
+        }
+
+        global $wp_query;
+
+        if (!$wp_query->get('vvc_restricted_access')) {
+            return;
+        }
+
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '/';
+        $this->restricted_login_url = wp_login_url(home_url($request_uri));
+        $this->is_rendering_restricted = true;
+
+        add_filter('render_block', array($this, 'filter_restricted_404_blocks'), 10, 2);
+        add_filter('document_title_parts', array($this, 'filter_restricted_document_title'));
+        add_action('wp_footer', array($this, 'reset_restricted_render_state'), 0);
+    }
+    
+    /**
+     * Filter block output within the 404 template when restricted content is reached.
+     */
+    public function filter_restricted_404_blocks($block_content, $block) {
+        if (!$this->is_rendering_restricted) {
+            return $block_content;
+        }
+
+        $block_name = isset($block['blockName']) ? $block['blockName'] : null;
+
+        if ($block_name === 'core/heading' && strpos($block_content, 'Page not found') !== false) {
+            $heading = esc_html__('Restricted Content', 'visitor-visibility-control');
+            $icon    = '<span aria-hidden="true" class="vvc-restricted-icon" style="margin-right:0.35em">🔒</span>';
+            return sprintf('<h1 class="wp-block-heading">%s%s</h1>', $icon, $heading);
+        }
+
+        if ($block_name === 'core/paragraph' && strpos($block_content, 'The page you are looking for') !== false) {
+            $message = esc_html__('This page or post is available for team members. Please log in to view.', 'visitor-visibility-control');
+            return sprintf('<p>%s</p>', $message);
+        }
+
+        if ($block_name === 'core/search') {
+            return $this->get_restricted_login_button_markup();
+        }
+
+        return $block_content;
+    }
+
+    /**
+     * Adjust the document title while rendering restricted content message.
+     */
+    public function filter_restricted_document_title($parts) {
+        if ($this->is_rendering_restricted && isset($parts['title'])) {
+            $parts['title'] = esc_html__('Restricted Content', 'visitor-visibility-control');
+        }
+
+        return $parts;
+    }
+
+    /**
+     * Build markup for the login button replacement used in the 404 pattern.
+     */
+    private function get_restricted_login_button_markup() {
+        $button_text = esc_html__('Log In to View', 'visitor-visibility-control');
+        $login_url   = esc_url($this->restricted_login_url ?: wp_login_url());
+
+        return sprintf(
+            '<div class="wp-block-buttons is-layout-flex wp-block-buttons-is-layout-flex" style="justify-content:flex-start"><div class="wp-block-button is-style-fill"><a class="wp-block-button__link wp-element-button" href="%1$s">%2$s</a></div></div>',
+            $login_url,
+            $button_text
+        );
+    }
+
+    /**
+     * Reset filters after rendering to avoid affecting subsequent requests.
+     */
+    public function reset_restricted_render_state() {
+        if (!$this->is_rendering_restricted) {
+            return;
+        }
+
+        $this->is_rendering_restricted = false;
+        $this->restricted_login_url = '';
+
+        remove_filter('render_block', array($this, 'filter_restricted_404_blocks'), 10);
+        remove_filter('document_title_parts', array($this, 'filter_restricted_document_title'));
+        remove_action('wp_footer', array($this, 'reset_restricted_render_state'), 0);
     }
     
     /**
