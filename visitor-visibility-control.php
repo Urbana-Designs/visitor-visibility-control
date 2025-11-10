@@ -3,7 +3,7 @@
  * Plugin Name: Visitor Visibility Control
  * Plugin URI: https://github.com/Urbana-Designs/visitor-visibility-control
  * Description: Adds a checkbox in the editor to hide/show content for logged-in users and controls menu visibility.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Urbana Designs
  * Author URI: https://github.com/Urbana-Designs
  * License: GPL v2 or later
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('VVC_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('VVC_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('VVC_PLUGIN_VERSION', '1.0.1');
+define('VVC_PLUGIN_VERSION', '1.0.2');
 
 /**
  * Main plugin class
@@ -179,8 +179,8 @@ class VisitorVisibilityControl {
      * Enqueue frontend assets
      */
     public function enqueue_frontend_assets() {
-        // Don't load for admin users who can edit posts/pages
-        if (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages'))) {
+        // Don't load for any logged-in users
+        if (is_user_logged_in()) {
             return;
         }
         
@@ -307,8 +307,8 @@ class VisitorVisibilityControl {
             return;
         }
         
-        // Don't affect queries for logged-in users with edit capabilities
-        if (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages'))) {
+        // Don't affect queries for any logged-in users
+        if (is_user_logged_in()) {
             return;
         }
         
@@ -327,8 +327,8 @@ class VisitorVisibilityControl {
      * Exclude hidden posts from navigation menus
      */
     public function exclude_hidden_posts_from_menus($items, $menu, $args) {
-        // Don't affect admin or users with edit capabilities
-        if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
+        // Don't affect admin or any logged-in users
+        if (is_admin() || is_user_logged_in()) {
             return $items;
         }
         
@@ -360,8 +360,8 @@ class VisitorVisibilityControl {
             return;
         }
         
-        // Don't affect users with edit capabilities
-        if (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages'))) {
+        // Don't affect any logged-in users
+        if (is_user_logged_in()) {
             return;
         }
         
@@ -438,8 +438,8 @@ class VisitorVisibilityControl {
             return;
         }
 
-        // Don't affect admin or users with edit capabilities
-        if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
+        // Don't affect admin or any logged-in users
+        if (is_admin() || is_user_logged_in()) {
             return;
         }
 
@@ -595,8 +595,8 @@ class VisitorVisibilityControl {
      * Exclude hidden pages from wp_list_pages() function
      */
     public function exclude_hidden_pages_from_wp_list_pages($exclude_array) {
-        // Don't affect admin or users with edit capabilities
-        if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
+        // Don't affect admin or any logged-in users
+        if (is_admin() || is_user_logged_in()) {
             return $exclude_array;
         }
         
@@ -646,8 +646,8 @@ class VisitorVisibilityControl {
      * Exclude hidden pages from get_pages() function
      */
     public function exclude_hidden_pages_from_get_pages($pages, $args) {
-        // Don't affect admin or users with edit capabilities
-        if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
+        // Don't affect admin or any logged-in users
+        if (is_admin() || is_user_logged_in()) {
             return $pages;
         }
         
@@ -659,8 +659,8 @@ class VisitorVisibilityControl {
      * Exclude hidden pages from wp_page_menu
      */
     public function exclude_hidden_pages_from_page_menu($args) {
-        // Don't affect admin or users with edit capabilities
-        if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
+        // Don't affect admin or any logged-in users
+        if (is_admin() || is_user_logged_in()) {
             return $args;
         }
         
@@ -683,8 +683,8 @@ class VisitorVisibilityControl {
      * Hide page menu items by adding CSS class (fallback method)
      */
     public function hide_page_menu_items($css_class, $page, $depth, $args, $current_page) {
-        // Don't affect admin or users with edit capabilities
-        if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
+        // Don't affect admin or any logged-in users
+        if (is_admin() || is_user_logged_in()) {
             return $css_class;
         }
         
@@ -719,8 +719,8 @@ class VisitorVisibilityControl {
      * Filter navigation menu objects (additional safety net)
      */
     public function filter_nav_menu_objects($items, $args) {
-        // Don't affect admin or users with edit capabilities
-        if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
+        // Don't affect admin or any logged-in users
+        if (is_admin() || is_user_logged_in()) {
             return $items;
         }
         
@@ -739,8 +739,8 @@ class VisitorVisibilityControl {
      * Add inline CSS as final fallback to hide any remaining hidden pages
      */
     public function add_inline_css_for_hidden_pages() {
-        // Don't affect admin or users with edit capabilities
-        if (is_admin() || (is_user_logged_in() && (current_user_can('edit_posts') || current_user_can('edit_pages')))) {
+        // Don't affect admin or any logged-in users
+        if (is_admin() || is_user_logged_in()) {
             return;
         }
         
@@ -918,7 +918,8 @@ class VisitorVisibilityControl {
      * Plugin activation
      */
     public function activate() {
-        // Set default meta value for existing posts without the meta
+        // Set default meta value ONLY for posts/pages that don't have the meta key yet
+        // This ensures existing visibility settings are preserved during plugin updates
         // Note: meta_query is required during activation to identify posts without visibility meta
         // This is a one-time operation during plugin activation for existing content
         $posts = get_posts(array(
@@ -934,6 +935,8 @@ class VisitorVisibilityControl {
             )
         ));
         
+        // Only add default value to posts that don't have any visibility setting
+        // This preserves all existing visibility choices
         foreach ($posts as $post_id) {
             update_post_meta($post_id, '_show_to_visitor', false);
         }
